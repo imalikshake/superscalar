@@ -1,0 +1,65 @@
+# Instruction Set
+
+"add" : Add 
+                   # add r0 r1 r2  
+                   # where r0=r1+r2
+
+"addi" : Add Immediate
+                   # add r0 r1 c4  
+                   # where r0 = r1 + 4
+                   
+"imul" : Multiply Integers
+                   # div r0 r1 r2  
+                   # where r0 = r1*r2
+
+"idiv" : Divide Integers
+                   # add r0 r1 r2  
+                   # where r0 = r1/r2
+
+"cmp" : Compare
+                   # cmp r0 r1 r2
+                   # where r0 = r1 - r2
+
+"ldr" : Load Register 
+                   # ldr r0 r1 
+                   # where r0 <- M[r1]
+
+"ldc" : Load Constant 
+                   # ldc r0 c4 
+                   # where r0 <- 4
+
+"be" : Branch if equal to zero 
+                   # blth r0 label
+
+"j" : Jump to label; 
+              # j label
+
+"bne" : Branch if equal to zero 
+                    # blth r0 label
+
+"bgth" : Branch if greater than zero 
+                   # blth r0 label
+
+"bgthe" : Branch if greater than or equal zero 
+                   # blth r0 label
+
+"bgthe" : Branch if less than or equal zero 
+                   # blth r0 label
+
+"blth" : Branch if less than zero 
+                   # blth r0 label
+
+"sub" : Subtract 
+                   # sub r0 r1 r2
+                   # where r0=r1-r2
+
+"subi" : Subtract Immediate 
+                   # sub r0 r1 c4 
+                   # where r0 = r1 - 4
+
+"sto" : Store 
+                   # sto r0 r1 
+                   # where M[r0] <- r1
+
+"sys" : Dump Register/Memory 
+                   # sys (r|m fromIndex toIndex)
