@@ -34,7 +34,7 @@
 "j" : Jump to label; 
               # j label
 
-"bne" : Branch if equal to zero 
+"bne" : Branch if not equal to zero 
                     # blth r0 label
 
 "bgth" : Branch if greater than zero 

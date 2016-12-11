@@ -1,8 +1,8 @@
-# Generates Fibinacci up to 9 (term in r3)
+# Generates Fibinacci up to n (n is stored in r3 and the nth fib number is in r1)
 ldc r0 c1
 ldc r1 c1
 
-ldc r3 c2
+ldc r3 c10
 ldc r2 c0
 
 sto r2 r0
