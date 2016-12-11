@@ -1,13 +1,19 @@
 import numpy as np
 import assembler
 import random
+from collections import deque
 
 program = assembler.program
 
+reg_size = 32
+mem_size = 4096
+clock = 0
 ALUinstructions = ["add", "addi", "sub", "subi", "cmp"] 
 BranchInstructions = [ "blth", "blthe", "bgth", "bgthe", "bne", "be"] 
-           
-memory = np.zeros(100, dtype=int)
+
+memory = np.zeros(mem_size, dtype=int)
+
+         
 
 for x in range(20, 30):
     memory[x] = 30 - x
@@ -19,6 +25,8 @@ class Fetch(object):
         self.EX = None
         self.output = {"noop":True}
         self.input = {"noop":True}
+
+
     def setup(self,EX):
         self.EX = EX
     
@@ -34,6 +42,7 @@ class Fetch(object):
             self.input["noop"] = True
 
         self.output = self.input
+
         self.pc+=1
     
     def tick2(self):
@@ -46,6 +55,8 @@ class Fetch(object):
                 self.input["noop"] = True
 
             self.output = self.input
+            self.instruction_buffer.append(self.output)
+
             self.pc+=1
             self.branchFlag = 0
             # print "IF OUTPUT:"
@@ -58,12 +69,11 @@ class Decode(object):
         self.EX = None
         self.input = {"noop":True}
         self.output = {"noop":True}
-    
+        
     def setup(self,IF,EX):
         self.IF = IF
         self.EX = EX
     
-
     def printRegisterFile(self) :
         print ""
         i = 0
@@ -123,6 +133,7 @@ class Decode(object):
             # self.input = self.IF.output
             # print "ID INPUT:"
             # print self.input
+
 class Execute(object):
     def __init__(self):
         self.forwarding_reg = {"id" : None,
@@ -137,6 +148,10 @@ class Execute(object):
         self.IF = IF
         self.ID = ID
         self.WB = WB
+
+        self.mem_unit = Memory_unit()
+        self.alu_unit = ALU_unit()
+        self.branch_unit = Branch_unit()
 
     def tick1(self):
         self.input = self.ID.output
@@ -176,36 +191,24 @@ class Execute(object):
                 self.output["action"] = "write"
                 self.output["id"] = self.input["arg1"]
                 
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
-                
             elif self.input["opcode"] == "addi": 
                 # print self.input
                 self.output["value"] = self.input["B"] + self.input["arg3"]
                 self.output["type"] = "register"
                 self.output["id"] = self.input["arg1"]
                 self.output["action"] = "write"
-                
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
 
             elif self.input["opcode"] == "sub" :
                 self.output["value"] = self.input["B"] - self.input["C"]
                 self.output["type"] = "register"
                 self.output["id"] = self.input["arg1"]
                 self.output["action"] = "write"
-                
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
 
             elif self.input["opcode"] == "subi" :
                 self.output["value"] = self.input["B"] - self.input["arg3"]
                 self.output["type"] = "register"
                 self.output["id"] = self.input["arg1"]
                 self.output["action"] = "write"   
-                
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
 
             elif self.input["opcode"] == "blth":
                 if self.input["B"] < 0:
@@ -266,18 +269,11 @@ class Execute(object):
                 self.output["id"] = self.input["arg1"]
                 self.output["value"] = compare
                 
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
-
-                
             elif self.input["opcode"] == "ldc" :
                 self.output["type"] = "register"
                 self.output["id"] = self.input["arg1"]
                 self.output["value"] = self.input["arg2"]
                 self.output["action"] = "write"
-                
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
 
             elif self.input["opcode"] == "ldr" :
                  
@@ -289,9 +285,6 @@ class Execute(object):
                 self.output["value"] = memory[self.output["value"]]
                 self.output["type"] = "register"
                 self.output["action"] = "write"
-
-                self.forwarding_reg["id"] = self.input["arg1"]
-                self.forwarding_reg["value"] = self.output["value"]
                 
             elif self.input["opcode"] == "sto" :
                 self.output["type"] = "memory"
@@ -313,6 +306,15 @@ class Execute(object):
             else:
                 print "Cannot find execute for" + str(self.input)
 
+        if not self.input["noop"]:
+            if self.input["opcode"] in ALUinstructions:
+                self.forwarding_reg["id"] = self.input["arg1"]
+                self.forwarding_reg["value"] = self.output["value"]
+            
+            elif self.input["opcode"] in ["ldr","ldc","cmp"]:
+                self.forwarding_reg["id"] = self.input["arg1"]
+                self.forwarding_reg["value"] = self.output["value"]
+
         if not self.output["noop"] == True:
             if self.output["type"] == "pc":
                 self.IF.relativeBranch(self.output)
@@ -329,51 +331,6 @@ class Execute(object):
         # print "EX OUTPUT:"
         # print self.output
 
-# class MemoryAccess(object):
-#     def __init__(self):
-#         self.memory = np.zeros(100, dtype=int)
-#         self.WB = None
-#         self.EX = None
-#         self.input = {"noop":True}
-#         self.output = {"noop":True}
-#         for x in range(20, 30):
-#             self.memory[x] = 30 - x
-
-#     def setup(self,EX,WB):
-#         self.EX = EX
-#         self.WB = WB
-
-#     def tick1(self):
-#         self.input = self.EX.output
-#         # print "MEM INPUT:"
-#         # print self.input
-    
-#     def tick2(self):
-#         if not self.input["noop"]:
-#             if self.input["type"] == "memory":
-                
-#                 if self.input["action"] == "write": 
-#                     self.memory[self.input["id"]] = self.input["value"]
-                
-#                 elif self.input["action"] == "print":
-#                     self.printMemory(int(self.input["arg1"]),int(self.input["arg2"]))
-                
-#                 elif self.input["action"] == "read":
-#                     self.input["value"] = self.memory[self.input["value"]]
-#                     self.input["type"] = "register"
-#                     self.input["action"] = "write"
-#         self.output = self.input
-#         # print "MEM OUTPUT:"
-#         # print self.output
-
-#     def printMemory(self, fromIndex, toIndex):
-#         print ""
-#         i = 0
-#         for x in self.memory[fromIndex:toIndex]:
-#             print "m" + "[" + str(i) + "]" + ":[" + str(x) + "]"
-#             i = i+1
-#         # raw_input("Press Enter to continue...")
-
 class WriteBack(object):
     def __init__(self):
         self.ID = None
@@ -386,7 +343,7 @@ class WriteBack(object):
 
     def printMemory(self, fromIndex, toIndex):
         print ""
-        i = 0
+        i = fromIndex
         for x in memory[fromIndex:toIndex]:
             print "m" + "[" + str(i) + "]" + ":[" + str(x) + "]"
             i = i+1
@@ -416,32 +373,74 @@ class WriteBack(object):
     def tick2(self):
         pass
 
-# - - - - - - - - - - - - - - - - - - - - - #
+# ---------------- #
+
+class ALU_unit(object):
+    def __init__(self):
+        self.RS = [RS() for x in range(3)]
+        self.end_time = 0
+
+class Memory_unit(object):
+    def __init__(self):
+        self.RS = [RS() for x in range(2)]
+        self.end_time = 0
+
+class Branch_unit(object):
+    def __init__(self):
+        pass
+
+class RS(object):
+    def __init__(self):
+        self.op = ''
+        self.qj = self.qk = 0
+        self.vj = self.vk = 0
+        self.A = 0
+        self.busy = False
+        self.ins = None 
+
+# ---------------- #
+
+class Processor(object):
+    def __init__(self):
+        self.IF = Fetch()
+        self.ID = Decode()
+        self.EX = Execute()
+        self.WB = WriteBack()
+
+    def setup(self):
+        self.IF.setup(self.ID)
+        self.ID.setup(self.IF,self.EX)
+        self.EX.setup(self.IF,self.ID, self.WB)
+        self.WB.setup(self.ID,self.EX)
+
+    def tick1(self):
+        self.IF.tick1()
+        self.WB.tick1()
+        self.ID.tick1()
+        self.EX.tick1()
+    
+    def tick2(self):
+
+        self.IF.tick2()
+        self.ID.tick2()
+        self.EX.tick2()
+        self.WB.tick2()
+
+    def isComplete(self):
+        if self.IF.output["noop"] == True and self.ID.output["noop"] == True and self.EX.output["noop"] == True and self.WB.input["noop"] == True :
+            return True
 
 def run():
-    
-    IF = Fetch()
-    ID = Decode()
-    EX = Execute()
-    WB = WriteBack()
-
-    IF.setup(ID)
-    ID.setup(IF,EX)
-    EX.setup(IF,ID,WB)
-    WB.setup(ID,EX)
+    global clock
+    proc = Processor()
+    proc.setup()
 
     while True:
-        IF.tick1()
-        WB.tick1()
-        ID.tick1()
-        EX.tick1()
-
-        IF.tick2()
-        ID.tick2()
-        EX.tick2()
-        WB.tick2()
-
-        if IF.output["noop"] == True and ID.output["noop"] == True and EX.output["noop"] == True and WB.input["noop"] == True :
+        proc.tick1()
+        proc.tick2()
+        clock += 1
+        if proc.isComplete():
+            print "Clock Cycles:" + str(clock)
             break;
 
 run()
