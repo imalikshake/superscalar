@@ -49,7 +49,7 @@ class Controller:
 
         self.memory_queue = list()
         
-        self.ins_current_id=0
+        self.ins_current_id = 0
 
         self.clock_now = 0
     def read_ins(self,ins_text_data):
@@ -98,9 +98,10 @@ class Controller:
                 break
 
             self.step()
+            self.print_reg()
             # self.print_rs()
-            self.print_state()
-            # self.print_units()
+            # self.print_state()
+            self.print_units()
 
     def step(self):
         # increment clock 

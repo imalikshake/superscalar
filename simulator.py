@@ -25,7 +25,7 @@ class Fetch(object):
         self.EX = None
         self.output = {"noop":True}
         self.input = {"noop":True}
-
+        self.stall = False
 
     def setup(self,EX):
         self.EX = EX
