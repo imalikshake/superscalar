@@ -1,4 +1,5 @@
-label :
-sto r2 c1
-addi r3 r1 c1
-blth r2 label
+ldc r3 c1
+sto r3 r3
+ldr r2 r3
+add r2 r2 r2
+
