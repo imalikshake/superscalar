@@ -1,5 +1,3 @@
-# Bubble Sort for m[20] to m[29]
-sys m 20 30
 ldc r10 c20
 ldc r9 c20
 ldc r11 c29
@@ -28,4 +26,4 @@ sto r13 r0
 j main
 
 end :
-sys m 20 30
+ldc r14 11

@@ -6,8 +6,11 @@ from collections import deque
 class InstructionQueue(object):
     def __init__(self):
         self.instructions = deque()
-        self.buffer_size= 2
+        self.buffer_size = 1
     
+    def reset(self):
+        self.instructions =  deque()
+
     def peak(self):
         return self.instructions[0]
     
@@ -82,33 +85,52 @@ class Fetch(object):
     def __init__(self):
         self.pc = 0
         self.instruction = {"noop":True}
-        self.stall = False
-        self.terminate = False
-    
-    def relativeBranch(self,branch):
-        self.pc = branch["value"]
+        self.branch_flag = 0
+
+    def relativeBranch(self, new_pc):
+        self.pc = new_pc
+        IQ.reset()
 
     def tick(self):
+        print self.pc
         if not IQ.isFull():
             if self.pc < len(program):
                 self.instruction = program[self.pc]
                 self.instruction["noop"] = False
+
             else:
                 self.instruction = {}
                 self.instruction["noop"] = True
                 self.instruction["terminate"] = True
-                self.terminate = True
+
+
             self.pc+=1
             IQ.add(self.instruction)
     
     def tock(self):
-        pass
+        # print self.branch_flag 
+        print self.pc
+        if self.branch_flag == 1:
+
+            if self.pc < len(program):
+                self.instruction = program[self.pc]
+                self.instruction["noop"] = False
+
+            else:
+                self.instruction = {}
+                self.instruction["noop"] = True
+                self.instruction["terminate"] = True
+
+            self.branch_flag  = 0
+            self.pc+=1
+            IQ.add(self.instruction)
+
 
 class Decode(object):
     def __init__(self):
         self.register_file = Registers()
         self.instruction = None
-        self.terminate = False
+        self.stall = False
     
     def update_reg(self, rs_id, result):
         if rs_id is not 0:
@@ -119,12 +141,15 @@ class Decode(object):
                     self.register_file.val[i] = result
         
     def tock(self):
+        self.instruction = IQ.peak()
         self.output = {}
         self.output["noop"] = self.instruction["noop"]
         
-        if "terminate" in self.instruction:
-            self.terminate = True
-        elif not self.instruction["noop"]:
+        # if "terminate" in self.instruction:
+        #     if self.instruction["terminate"] == True:
+        #         self.terminate = True
+        
+        if not self.instruction["noop"]:
             self.output["opcode"] = self.instruction["opcode"]
             
             if self.instruction["opcode"] == "sys":
@@ -145,7 +170,7 @@ class Decode(object):
                 if "arg3" in self.instruction:
                     self.output["arg3"] = int(self.instruction["arg3"][1:])
 
-        if not self.output["noop"]:
+        if not self.output["noop"] and self.stall is False:
             if not self.output["opcode"] == "sys" :
                 # MEM_UNIT
                 issued = False
@@ -226,19 +251,20 @@ class Decode(object):
                                     RESERVE[i].qj = self.register_file.qi[self.output["arg2"]]
                 # BRANCH_UNIT                
                 elif self.output["opcode"] in BranchInstructions or self.output["opcode"] == "j": 
-                    for i in range(RS_map["BRANCH"][0],RS_map["BRANCH"][1]):
-                        if RESERVE[i].busy == False:
-                            RESERVE[i].busy = True
-                            RESERVE[i].opcode = self.output["opcode"]
-                            RESERVE[i].instruction = self.output
-                            issued = True
-
-                            if self.output["opcode"] == "j":
-                                RESERVE[i].A = self.output["arg1"]
-                            else:
+                    self.stall = True
+                    if self.output["opcode"] == "j":
+                        self.stall = False
+                        IF.relativeBranch(self.output["arg1"])
+                        IF.branch_flag = 1
+                    else:
+                        for i in range(RS_map["BRANCH"][0],RS_map["BRANCH"][1]):
+                            if RESERVE[i].busy == False:
+                                RESERVE[i].busy = True
+                                RESERVE[i].opcode = self.output["opcode"]
+                                RESERVE[i].instruction = self.output
+                                issued = True
                                 RESERVE[i].A = self.output["arg2"]
 
-                            if self.output["opcode"] in BranchInstructions:
                                 if self.register_file.qi[self.output["arg1"]] == 0:
                                     RESERVE[i].qj = 0
                                     RESERVE[i].vj = self.register_file.val[self.output["arg1"]]
@@ -250,14 +276,13 @@ class Decode(object):
                     IQ.pop()
     
     def tick(self):
-        self.instruction = IQ.peak()
-
+        pass
 class Execute(object):
     def __init__(self):
         self.alu_unit = None
         self.mem_unit = None
         self.branch_unit = None
-        self.terminate = False
+
     def issue_mem(self):
         if self.mem_unit.busy == False:
             for i in range(RS_map["MEM"][0],RS_map["MEM"][1]):
@@ -287,47 +312,43 @@ class Execute(object):
                     self.branch_unit.busy = True
 
                     opcode = RESERVE[i].opcode
+                
+                    operand1 = RESERVE[i].vj
+                    if opcode == "blth":
+                        if operand1 < 0:
+                            self.branch_unit.result = RESERVE[i].A
+                        else :
+                            self.branch_unit.result = "noop"                        
                     
-                    if opcode == "j" :
-                       self.branch_unit.result = RESERVE[i].A
+                    elif opcode == "be":
+                        if operand1 == 0:
+                           self.branch_unit.result = RESERVE[i].A
 
-                    else:
-                        operand1 = RESERVE[i].vj
-                        if opcode == "blth":
-                            if operand1 < 0:
-                                self.branch_unit.result = RESERVE[i].A
-                            else :
-                                self.branch_unit.result = "noop"                        
-                        
-                        elif opcode == "be":
-                            if operand1 == 0:
-                               self.branch_unit.result = RESERVE[i].A
+                        else :
+                            self.branch_unit.result = "noop"                        
+                    elif opcode == "bgth":
+                        if operand1 > 0:
+                           self.branch_unit.result = RESERVE[i].A
+                        else :
+                            self.branch_unit.result = "noop"                        
+                    
+                    elif opcode == "blthe":
+                        if operand1 <= 0:
+                           self.branch_unit.result = RESERVE[i].A
+                        else :
+                            self.branch_unit.result = "noop"
 
-                            else :
-                                self.branch_unit.result = "noop"                        
-                        elif opcode == "bgth":
-                            if operand1 > 0:
-                               self.branch_unit.result = RESERVE[i].A
-                            else :
-                                self.branch_unit.result = "noop"                        
-                        
-                        elif opcode == "blthe":
-                            if operand1 <= 0:
-                               self.branch_unit.result = RESERVE[i].A
-                            else :
-                                self.branch_unit.result = "noop"
+                    elif opcode == "bgthe":
+                        if operand1 >= 0:
+                           self.branch_unit.result = RESERVE[i].A
+                        else :
+                            self.branch_unit.result = "noop"
 
-                        elif opcode == "bgthe":
-                            if operand1 >= 0:
-                               self.branch_unit.result = RESERVE[i].A
-                            else :
-                                self.branch_unit.result = "noop"
-
-                        elif opcode == "bne":
-                            if operand1 != 0:
-                               self.branch_unit.result = RESERVE[i].A
-                            else :
-                                self.branch_unit.result = "noop"
+                    elif opcode == "bne":
+                        if operand1 != 0:
+                           self.branch_unit.result = RESERVE[i].A
+                        else :
+                            self.branch_unit.result = "noop"
     def issue_alu(self):
         if self.alu_unit.busy == False:
             for i in range(RS_map["ALU"][0],RS_map["ALU"][1]):
@@ -342,41 +363,20 @@ class Execute(object):
 
                     if opcode == "add":
                         self.alu_unit.result =  RESERVE[i].vj + RESERVE[i].vk
+                    elif opcode == "cmp":
+                        self.alu_unit.result =  RESERVE[i].vj - RESERVE[i].vk
                     elif opcode == "sub":
                         self.alu_unit.result =  RESERVE[i].vj - RESERVE[i].vk
                     elif opcode == "subi":
                         self.alu_unit.result =  RESERVE[i].vj - RESERVE[i].A
                     elif opcode == "addi":
                        self.alu_unit.result =  RESERVE[i].vj +  RESERVE[i].A
-
+                    
+                    # print self.alu_unit.result
     def tock(self):
         self.issue_mem()
         self.issue_alu()
         self.issue_branch()
-        
-        if ID.terminate == True:
-            if not self.mem_unit.busy and not self.alu_unit.busy and not self.branch_unit.busy:
-                self.terminate = True
-        # if self.mem_unit.busy:
-        #     result = {}
-        #     result["rs_id"] = mem_unit.rs_id
-        #     result["result"] = mem_unit.result
-        #     CB.mem_results.append(result)
-        #     # self.mem_unit.busy = False
-
-        # if self.alu_unit.busy:
-        #     result = {}
-        #     result["rs_id"] = alu_unit.rs_id
-        #     result["result"] = alu_unit.result
-        #     CB.alu_results.append(result)
-        #     # self.alu_unit.busy = False
-
-        # if self.branch_unit.busy:
-        #     result = {}
-        #     result["rs_id"] = branch_unit.rs_id
-        #     result["result"] = branch_unit.result
-        #     CB.branch_results.append(result)
-            # self.branch_unit.busy = False
     
     def tick(self):
         if self.mem_unit.busy:
@@ -385,27 +385,32 @@ class Execute(object):
             result["result"] = mem_unit.result
             CB.mem_results.append(result)
             # self.mem_unit.busy = False
-
         if self.alu_unit.busy:
             result = {}
             result["rs_id"] = alu_unit.rs_id
             result["result"] = alu_unit.result
             CB.alu_results.append(result)
             # self.alu_unit.busy = False
-
         if self.branch_unit.busy:
             result = {}
             result["rs_id"] = branch_unit.rs_id
             result["result"] = branch_unit.result
             CB.branch_results.append(result)
-            # self.branch_unit.busy = False
+            
+            ID.stall = False
+            
+            if result["result"] is not "noop":
+                print result
+                IF.relativeBranch(result["result"])
+                IF.branch_flag = 1
+
 
     def print_units(self):
         print 'ALU unit: \n\tRS id: %d, result: %f, busy: %r' % ( self.alu_unit.rs_id, self.alu_unit.result, self.alu_unit.busy)
         print "----------------------------------------------------------------"
         print 'MEM unit: \n\tRS id: %d, result: %f, busy: %r' % ( self.mem_unit.rs_id, self.mem_unit.result, self.mem_unit.busy) 
-        # print "----------------------------------------------------------------"
-        # print 'BRANCH unit: \n\tRS id: %d, result: %f, busy: %r' % ( self.branch_unit.rs_id, self.branch_unit.result, self.branch_unit.busy) 
+        print "----------------------------------------------------------------"
+        print 'BRANCH unit: \n\tRS id: %d, result: %s, busy: %r' % ( self.branch_unit.rs_id, str(self.branch_unit.result), self.branch_unit.busy) 
 
 class CDB(object):
     def __init__(self):
@@ -432,13 +437,24 @@ class WriteBack(object):
                     RESERVE[i].qk = 0
                     RESERVE[i].vk = result
 
-            ID.update_reg(rs_id, result)
 
-            if RESERVE[rs_id].opcode == "sto":
+            if RESERVE[rs_id].opcode == "ldc":
+                ID.update_reg(rs_id, result)
+            
+            if RESERVE[rs_id].opcode == "ldr":
+                print " $$$$$$$$$$$$$$ " + str(result)
+                result = memory[result]
+                ID.update_reg(rs_id, result)
+
+            
+            elif RESERVE[rs_id].opcode == "sto":
+                print " $$$$$$$$$$$$$$ " + str(result)
                 memory[RESERVE[i].vj] = result
+
             RESERVE[rs_id].busy = False
             EX.mem_unit.busy = False
         
+
         if len(CB.alu_results) > 0:
             result = CB.alu_results.pop()
             rs_id =  result["rs_id"]
@@ -456,6 +472,16 @@ class WriteBack(object):
             ID.update_reg(rs_id, result)
             RESERVE[rs_id].busy = False
             EX.alu_unit.busy = False
+
+        if len(CB.branch_results) > 0:
+            result = CB.branch_results.pop()
+            rs_id =  result["rs_id"]
+            result = result["result"]
+
+            EX.branch_unit.busy = False
+            RESERVE[rs_id].busy = False
+
+
 
     def tick(self):
         pass
@@ -530,11 +556,17 @@ def clock_tick():
 def run():
     i = 0
     while True:
+    # for x in range(1000):
         i+= 1
         clock_tick()
         print_reserve()
-        if EX.terminate == True:
-            break
+        EX.print_units()
+        ID.register_file.print_reg()
+        print_memory(20,30)
+        raw_input("Press Enter to continue...")
+
+        # if IF.terminate == True and EX.terminate == True and ID.terminate == True:
+            # break
     print "Total clock cycles: %d" % (i)
 run()
 ID.register_file.print_reg()

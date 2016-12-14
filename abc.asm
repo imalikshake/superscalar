@@ -1,5 +1,12 @@
-ldc r3 c1
-sto r3 r3
-ldr r2 r3
-add r2 r2 r2
-sub r3 r2 r2
+ldc r3 c7
+
+modulo :
+subi r3 r3 c1
+subi r3 r3 c1
+subi r3 r3 c1
+subi r3 r3 c1
+blth r3 modulo
+j gcd
+
+gcd :
+ldc r4 c1

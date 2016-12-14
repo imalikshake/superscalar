@@ -1,8 +1,8 @@
 # r1 holds the GCD of the numbers in r0 and r1
-ldc r0 c207
+ldc r0 c210
 ldc r1 c40
-ldc r2 c207
-ldc r3 c207
+addi r2 r0 c0
+addi r3 r0 c0
 
 modulo :
 sub r3 r3 r1
