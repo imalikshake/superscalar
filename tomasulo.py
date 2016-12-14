@@ -3,22 +3,6 @@ import assembler
 import random
 from collections import deque
 
-program = assembler.program
-
-reg_size = 16
-mem_size = 4096
-
-clock = 0
-
-ALUinstructions = ["add", "addi", "sub", "subi", "cmp"] 
-BranchInstructions = [ "blth", "blthe", "bgth", "bgthe", "bne", "be"] 
-
-
-memory = np.zeros(mem_size, dtype=int)
-
-for x in range(20, 30):
-    memory[x] = 30 - x
-
 class InstructionQueue(object):
     def __init__(self):
         self.instructions = deque()
@@ -119,7 +103,6 @@ class Fetch(object):
     
     def tock(self):
         pass
-
 
 class Decode(object):
     def __init__(self):
@@ -303,7 +286,6 @@ class Execute(object):
                     self.branch_unit.rs_id = i
                     self.branch_unit.busy = True
 
-                   
                     opcode = RESERVE[i].opcode
                     
                     if opcode == "j" :
@@ -361,7 +343,7 @@ class Execute(object):
                     if opcode == "add":
                         self.alu_unit.result =  RESERVE[i].vj + RESERVE[i].vk
                     elif opcode == "sub":
-                        self.alu_unit.result =  RESERVE[i].vj0 - RESERVE[i].vk
+                        self.alu_unit.result =  RESERVE[i].vj - RESERVE[i].vk
                     elif opcode == "subi":
                         self.alu_unit.result =  RESERVE[i].vj - RESERVE[i].A
                     elif opcode == "addi":
@@ -396,7 +378,6 @@ class Execute(object):
         #     CB.branch_results.append(result)
             # self.branch_unit.busy = False
     
-    
     def tick(self):
         if self.mem_unit.busy:
             result = {}
@@ -418,7 +399,6 @@ class Execute(object):
             result["result"] = branch_unit.result
             CB.branch_results.append(result)
             # self.branch_unit.busy = False
-
 
     def print_units(self):
         print 'ALU unit: \n\tRS id: %d, result: %f, busy: %r' % ( self.alu_unit.rs_id, self.alu_unit.result, self.alu_unit.busy)
@@ -479,11 +459,6 @@ class WriteBack(object):
 
     def tick(self):
         pass
-    
-
-
-RS_map = {"ALU":(1,2), "MEM":(2,3), "BRANCH":(3,4)}
-RESERVE = [RS() for i in range(4)]
 
 def print_reserve():
     for i in range(len(RESERVE)):
@@ -505,7 +480,26 @@ def print_memory(fromIndex, toIndex):
     for x in memory[fromIndex:toIndex]:
         print "m" + "[" + str(i) + "]" + ":[" + str(x) + "]"
         i = i+1
+    
+RS_map = {"ALU":(1,2), "MEM":(2,3), "BRANCH":(3,4)}
+RESERVE = [RS() for i in range(4)]
 
+
+program = assembler.program
+
+reg_size = 16
+mem_size = 4096
+
+clock = 0
+
+ALUinstructions = ["add", "addi", "sub", "subi", "cmp"] 
+BranchInstructions = [ "blth", "blthe", "bgth", "bgthe", "bne", "be"] 
+
+
+memory = np.zeros(mem_size, dtype=int)
+
+for x in range(20, 30):
+    memory[x] = 30 - x
 
 IF = Fetch()
 ID = Decode()
@@ -523,9 +517,9 @@ EX.branch_unit = branch_unit
 
 def clock_tick():
     IF.tick()
-    WB.tick()
     ID.tick()
     EX.tick()
+    WB.tick()
 
     IF.tock()
     WB.tock()
