@@ -137,7 +137,6 @@ class Decode(object):
         
     def tock(self):
         self.output = {}
-
         self.output["noop"] = self.instruction["noop"]
         
         if "terminate" in self.instruction:
