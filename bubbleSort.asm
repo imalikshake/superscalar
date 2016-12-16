@@ -13,8 +13,8 @@ cmp r14 r11 r13
 be r14 check
 
 ldr r0 r13
-addi r1 r13 c1
-ldr r1 r1
+addi r4 r13 c1
+ldr r1 r4
 cmp r2 r0 r1
 bgth r2 increment
 j check
