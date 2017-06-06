@@ -1,6 +1,6 @@
-ldc r10 c20
-ldc r9 c20
-ldc r11 c29
+ldc r10 c0
+ldc r9 c0
+ldc r11 c9
 
 check :
 addi r9 r9 c1

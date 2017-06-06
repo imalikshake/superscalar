@@ -1,5 +1,5 @@
 # Generates Fibinacci up to n (n is stored in r3 and the nth fib number is in r1)
-ldc r3 c10
+ldc r3 c20
 
 
 ldc r0 c1
@@ -30,5 +30,4 @@ addi r2 r2 c1
 j label
 
 label2 :
-sys r
-sys m 0 10
+ldc r5 c0
